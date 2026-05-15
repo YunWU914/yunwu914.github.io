@@ -1,8 +1,6 @@
 backend:
-  name: github
-  repo: yunwu914/yunwu914.github.io
+  name: git-gateway
   branch: main
-  # 删除 base_url 和 auth_endpoint，Netlify 会自动处理 OAuth
 
 media_folder: "images/uploads"
 public_folder: "/images/uploads"

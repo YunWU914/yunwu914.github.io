@@ -14,4 +14,36 @@ collections:
     fields:
       - {label: "标题", name: "title", widget: "string"}
       - {label: "发布日期", name: "date", widget: "datetime"}
+      
+      # 新增：分类选择（单选）
+      - label: "分类"
+        name: "category"
+        widget: "select"
+        options:
+          - { label: "通用机械设备", value: "general-machinery" }
+          - { label: "建筑工程机械", value: "construction-machinery" }
+          - { label: "清洗通风", value: "cleaning-ventilation" }
+          - { label: "机床机械", value: "machine-tools" }
+          - { label: "物流设备", value: "logistics" }
+          - { label: "食品机械", value: "food-machinery" }
+          - { label: "五金配件", value: "hardware" }
+          - { label: "机床加工", value: "machining" }
+          - { label: "工装夹具", value: "fixtures" }
+          - { label: "电气自动化", value: "electrical-automation" }
+          - { label: "液压气动", value: "hydraulic-pneumatic" }
+          - { label: "维修拆解", value: "maintenance" }
+          - { label: "设计制图", value: "design-drawing" }
+          - { label: "材料热处理", value: "heat-treatment" }
+        default: "general-machinery"
+      
+      # 新增：标签（多选，可选）
+      - label: "标签"
+        name: "tags"
+        widget: "list"
+        required: false
+      
+      # 新增：摘要/简介
+      - {label: "摘要", name: "summary", widget: "text", required: false}
+      
+      # 正文
       - {label: "正文", name: "body", widget: "markdown"}

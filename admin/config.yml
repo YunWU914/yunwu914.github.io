@@ -2,6 +2,8 @@ backend:
   name: github
   repo: yunwu914/yunwu914.github.io
   branch: main
+  base_url: https://yunwu914.github.io
+  auth_endpoint: oauth
 
 media_folder: "images/uploads"
 public_folder: "/images/uploads"

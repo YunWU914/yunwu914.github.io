@@ -10,9 +10,9 @@ import { SidebarHotList, SidebarAuthors } from '../components/SidebarHot';
 import { MOCK_ARTICLES, CATEGORIES } from '../lib/mockData';
 
 // ============================================
-// 配置
+// 配置：改成正确的仓库名
 // ============================================
-const REPO = 'YunWU914/mechanical-forum';
+const REPO = 'YunWU914/yunwu914.github.io';  // ← 改成这个！
 const BRANCH = 'main';
 
 const CATEGORY_SLUG_MAP = {
@@ -32,9 +32,6 @@ const CATEGORY_SLUG_MAP = {
   'cailiao': 'heat-treatment',
 };
 
-// ============================================
-// 解析 markdown 的 frontmatter
-// ============================================
 function parseMarkdown(raw, path) {
   const match = raw.match(/^---\n([\s\S]*?)\n---/);
   let frontmatter = {};
@@ -48,18 +45,14 @@ function parseMarkdown(raw, path) {
       if (sep > -1) {
         const key = line.slice(0, sep).trim();
         let value = line.slice(sep + 1).trim();
-        
-        if ((value.startsWith('"') && value.endsWith('"')) || 
-            (value.startsWith("'") && value.endsWith("'"))) {
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
           value = value.slice(1, -1);
         }
-        
         if (value.startsWith('[') && value.endsWith(']')) {
           try {
             value = value.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
           } catch {}
         }
-        
         frontmatter[key] = value;
       }
     });
@@ -80,24 +73,22 @@ function parseMarkdown(raw, path) {
   };
 }
 
-// ============================================
-// 用 GitHub API 读取所有文章
-// ============================================
-async function fetchAllPosts() {
-  const posts = [];
-  
+async function fetchRealPosts() {
   try {
     const resp = await fetch(`https://api.github.com/repos/${REPO}/contents/content/posts?ref=${BRANCH}`);
-    if (!resp.ok) throw new Error('读取目录失败');
+    if (!resp.ok) {
+      console.error('GitHub API 失败:', resp.status);
+      return null;
+    }
     const rootItems = await resp.json();
-    
+    const posts = [];
+
     for (const item of rootItems) {
       if (item.type === 'dir') {
-        // 子目录（分类文件夹）
+        // 子目录（分类文件夹）- 新文章会在这里
         const subResp = await fetch(item.url);
         if (!subResp.ok) continue;
         const files = await subResp.json();
-        
         for (const file of files) {
           if (file.name.endsWith('.md')) {
             const raw = await fetch(file.download_url).then(r => r.text());
@@ -110,11 +101,11 @@ async function fetchAllPosts() {
         posts.push(parseMarkdown(raw, item.path));
       }
     }
+    return posts;
   } catch (err) {
     console.error('读取文章出错:', err);
+    return null;
   }
-  
-  return posts;
 }
 
 const FILTERS = ['全部', '最新发布', '最多阅读', '最多评论', '精华帖'];
@@ -129,30 +120,27 @@ export default function CategoryPage() {
   const cat = CATEGORIES[category] || { label: category, emoji: '📂', color: 'from-blue-700 to-blue-500', desc: '' };
   const targetCategory = CATEGORY_SLUG_MAP[category] || category;
 
-  // ============================================
-  // 页面加载时读取真实文章
-  // ============================================
   useEffect(() => {
-    setLoading(true);
     setPage(1);
     
-    fetchAllPosts().then(posts => {
-      let filtered;
-      
-      if (posts.length > 0) {
-        // 有真实文章，按分类过滤
-        filtered = posts.filter(a => a.category === targetCategory || a.category === category);
-      } else {
-        // 兜底：读不到就用假数据（至少不空白）
-        filtered = MOCK_ARTICLES.filter(a => a.category === category);
+    // 先显示 MOCK 兜底
+    const mockFiltered = MOCK_ARTICLES.filter(a => a.category === category);
+    setArticles(mockFiltered);
+    setLoading(false);
+    
+    // 后台读真实文章
+    fetchRealPosts().then(realPosts => {
+      if (realPosts && realPosts.length > 0) {
+        const filtered = realPosts.filter(a => 
+          a.category === targetCategory || a.category === category
+        );
+        if (filtered.length > 0) {
+          setArticles(filtered);
+        }
       }
-      
-      setArticles(filtered);
-      setLoading(false);
     });
   }, [category, targetCategory]);
 
-  // 排序
   let displayArticles = [...articles];
   if (filter === '最多阅读') displayArticles.sort((a, b) => (b.views || 0) - (a.views || 0));
   else if (filter === '最多评论') displayArticles.sort((a, b) => (b.comment_count || 0) - (a.comment_count || 0));
@@ -168,7 +156,6 @@ export default function CategoryPage() {
       <Navbar activeCategory={category} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-7">
-        {/* Hero */}
         <div className="rounded-2xl overflow-hidden mb-7" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%)' }}>
           <div className="relative p-10 md:px-12 overflow-hidden">
             <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, white, transparent 70%)', transform: 'translate(30%,-30%)' }} />
@@ -182,14 +169,12 @@ export default function CategoryPage() {
 
         <AdBannerWide slot={1} />
 
-        {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
           <Link to="/" className="text-blue-600 hover:underline">首页</Link>
           <ChevronRight className="w-3.5 h-3.5" />
           <span>{cat.label}</span>
         </div>
 
-        {/* Filters */}
         <div className="flex gap-2 flex-wrap mb-5">
           {FILTERS.map(f => (
             <button key={f} onClick={() => { setFilter(f); setPage(1); }}
@@ -201,13 +186,7 @@ export default function CategoryPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
           <div>
-            {/* Articles */}
-            {loading ? (
-              <div className="text-center py-20 text-muted-foreground">
-                <span className="text-6xl block mb-4">⏳</span>
-                <p className="text-lg font-medium">正在加载文章...</p>
-              </div>
-            ) : pageArticles.length === 0 ? (
+            {pageArticles.length === 0 ? (
               <div className="text-center py-20 text-muted-foreground">
                 <span className="text-6xl block mb-4">🔍</span>
                 <p className="text-lg font-medium">该分类暂无内容</p>
@@ -218,8 +197,7 @@ export default function CategoryPage() {
 
             <AdSlot slot={2} />
 
-            {/* Pagination */}
-            {!loading && totalPages > 1 && (
+            {totalPages > 1 && (
               <div className="flex justify-center gap-2 mt-6">
                 <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
                   className="px-4 py-2 rounded-lg border border-border bg-card text-sm text-muted-foreground disabled:opacity-40 hover:bg-muted transition-all">
@@ -239,7 +217,6 @@ export default function CategoryPage() {
             )}
           </div>
 
-          {/* Sidebar */}
           <aside className="space-y-5">
             <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <h4 className="font-bold text-sm mb-4 pb-2.5 border-b-2 border-blue-600 inline-block">📌 分类热门</h4>

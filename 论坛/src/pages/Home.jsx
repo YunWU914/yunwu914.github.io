@@ -14,21 +14,21 @@ const LATEST = [...MOCK_ARTICLES].sort((a, b) => b.id - a.id).slice(0, 8);
 const MANUALS = [
   { icon: '📏', gradient: 'from-blue-700 to-blue-500', title: '常用标准件参数速查表', desc: '螺栓、轴承、密封件、弹簧等标准件规格尺寸对照' },
   { icon: '🌡️', gradient: 'from-red-700 to-red-500', title: '材料热处理参数手册', desc: '45#、40Cr、GCr15等常用钢材淬火回火工艺参数' },
-  { icon: '⚠️', gradient: 'from-emerald-700 to-emerald-500', title: '数控系统报警代码库', desc: 'FANUC、西门子、三菱常见报警代码及解决方法汇总' },
+  { icon: '⚠️', gradient: 'from-emerald-700 to-emerald-500', title: '数控系统报警代码库', desc: '常见报警代码及解决方法汇总' },
   { icon: '⚡', gradient: 'from-amber-700 to-amber-500', title: '电气元件选型手册', desc: '接触器、继电器、变频器、传感器等选型计算公式' },
   { icon: '💧', gradient: 'from-violet-700 to-violet-500', title: '液压气动回路图集', desc: '常用液压回路原理图、气动控制回路设计参考' },
   { icon: '🔪', gradient: 'from-slate-600 to-slate-400', title: '切削用量参考手册', desc: '车削、铣削、钻削、磨削常用切削参数推荐值' },
 ];
 
 const TOOLS = [
-  { icon: '🧊', gradient: 'from-blue-700 to-blue-500', name: 'SolidWorks', desc: '三维设计软件' },
-  { icon: '🔴', gradient: 'from-red-700 to-red-500', name: 'Mastercam', desc: 'CNC编程软件' },
-  { icon: '🟢', gradient: 'from-emerald-700 to-emerald-500', name: 'FANUC', desc: '数控系统' },
-  { icon: '🟡', gradient: 'from-amber-700 to-amber-500', name: '西门子', desc: 'PLC与驱动' },
-  { icon: '🟣', gradient: 'from-violet-700 to-violet-500', name: '海德汉', desc: '光栅尺/编码器' },
-  { icon: '⚙️', gradient: 'from-slate-600 to-slate-400', name: '山特维克', desc: '刀具供应商' },
-  { icon: '🤝', gradient: 'from-rose-700 to-rose-500', name: '二手设备', desc: '机床交易平台' },
-  { icon: '📑', gradient: 'from-sky-700 to-sky-500', name: '标准下载', desc: 'GB/ISO标准库' },
+  { icon: '🧊', gradient: 'from-blue-700 to-blue-500', name: '待开发1', desc: '001' },
+  { icon: '🔴', gradient: 'from-red-700 to-red-500', name: '待开发2', desc: '002' },
+  { icon: '🟢', gradient: 'from-emerald-700 to-emerald-500', name: '待开发3', desc: '003' },
+  { icon: '🟡', gradient: 'from-amber-700 to-amber-500', name: '待开发4', desc: '004' },
+  { icon: '🟣', gradient: 'from-violet-700 to-violet-500', name: '待开发5', desc: '005' },
+  { icon: '⚙️', gradient: 'from-slate-600 to-slate-400', name: '待开发6', desc: '006' },
+  { icon: '🤝', gradient: 'from-rose-700 to-rose-500', name: '待开发7', desc: '007' },
+  { icon: '📑', gradient: 'from-sky-700 to-sky-500', name: '待开发8', desc: '008' },
 ];
 
 const formatTime = (id) => {
@@ -222,7 +222,7 @@ export default function Home() {
             <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <div className="flex items-center gap-2.5 text-sm font-bold mb-4 pb-2.5 border-b border-border/60">
                 <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center"><Building2 className="w-3.5 h-3.5 text-violet-600" /></span>
-                厂商 / 工具
+                待开发板块
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {TOOLS.map(t => (

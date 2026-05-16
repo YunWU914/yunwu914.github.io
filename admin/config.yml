@@ -9,11 +9,12 @@ collections:
   - name: "posts"
     label: "文章"
     folder: "content/posts"
-    path: "{{category}}/{{slug}}"        # ← 新增这一行！
+    path: "{{category}}/{{slug}}"
     create: true
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     fields:
       - {label: "标题", name: "title", widget: "string"}
+      - {label: "作者", name: "author", widget: "string", default: "发表人"}
       - {label: "发布日期", name: "date", widget: "datetime"}
       
       - label: "分类"

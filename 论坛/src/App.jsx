@@ -1,5 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import Home from './pages/Home';
 import CategoryPage from './pages/CategoryPage';
@@ -9,7 +9,7 @@ import ManualsPage from './pages/ManualsPage';
 
 function App() {
   return (
-    <Router basename="/论坛">
+    <Router>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/category/:category" element={<CategoryPage />} />

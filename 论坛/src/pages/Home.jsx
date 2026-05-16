@@ -1,15 +1,108 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Search, Zap, Star, BookOpen, Building2, ChevronRight, TrendingUp } from 'lucide-react';
+import { Search, Zap, Star, BookOpen, Building2, ChevronRight } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import ScrollToTop from '../components/ScrollToTop';
 import { AdBannerWide, AdSlot, AdSidebar } from '../components/AdBanner';
 import { SidebarHotList } from '../components/SidebarHot';
-import { MOCK_ARTICLES, CATEGORIES, HOT_SEARCHES } from '../lib/mockData';
+import { CATEGORIES, HOT_SEARCHES } from '../lib/mockData';  // 只保留分类配置和热搜
 
-const FEATURED = MOCK_ARTICLES.filter(a => a.is_featured);
-const LATEST = [...MOCK_ARTICLES].sort((a, b) => b.id - a.id).slice(0, 8);
+const REPO = 'YunWU914/yunwu914.github.io';
+const BRANCH = 'main';
+
+const CATEGORY_SLUG_MAP = {
+  'tongyong': 'general-machinery',
+  'jianzhu': 'construction-machinery',
+  'qingxi': 'cleaning-ventilation',
+  'jichuang': 'machine-tools',
+  'wuliu': 'logistics',
+  'shipin': 'food-machinery',
+  'wujin': 'hardware',
+  'jiagong': 'machining',
+  'juzhuang': 'fixtures',
+  'dianqi': 'electrical-automation',
+  'yeya': 'hydraulic-pneumatic',
+  'weixiu': 'maintenance',
+  'sheji': 'design-drawing',
+  'cailiao': 'heat-treatment',
+};
+
+// 反向映射：英文 value → URL slug
+const VALUE_TO_SLUG = Object.fromEntries(
+  Object.entries(CATEGORY_SLUG_MAP).map(([k, v]) => [v, k])
+);
+
+function parseMarkdown(raw, path) {
+  const match = raw.match(/^---\n([\s\S]*?)\n---/);
+  let frontmatter = {};
+  let content = raw;
+
+  if (match) {
+    content = raw.replace(match[0], '').trim();
+    match[1].split('\n').forEach(line => {
+      if (!line.trim() || line.startsWith('#')) return;
+      const sep = line.indexOf(':');
+      if (sep > -1) {
+        const key = line.slice(0, sep).trim();
+        let value = line.slice(sep + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        if (value.startsWith('[') && value.endsWith(']')) {
+          try {
+            value = value.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+          } catch {}
+        }
+        frontmatter[key] = value;
+      }
+    });
+  }
+
+  return {
+    id: path.split('/').pop().replace('.md', ''),
+    title: frontmatter.title || '无标题',
+    category: frontmatter.category || 'general-machinery',
+    author: frontmatter.author || '匿名',
+    date: frontmatter.date || '',
+    summary: frontmatter.summary || '',
+    content,
+    views: frontmatter.views || 0,
+    comment_count: frontmatter.comment_count || 0,
+    is_featured: frontmatter.is_featured || false,
+    tags: Array.isArray(frontmatter.tags) ? frontmatter.tags : [],
+  };
+}
+
+async function fetchRealPosts() {
+  try {
+    const resp = await fetch(`https://api.github.com/repos/${REPO}/contents/content/posts?ref=${BRANCH}`);
+    if (!resp.ok) return [];
+    const rootItems = await resp.json();
+    const posts = [];
+
+    for (const item of rootItems) {
+      if (item.type === 'dir') {
+        const subResp = await fetch(item.url);
+        if (!subResp.ok) continue;
+        const files = await subResp.json();
+        for (const file of files) {
+          if (file.name.endsWith('.md')) {
+            const raw = await fetch(file.download_url).then(r => r.text());
+            posts.push(parseMarkdown(raw, file.path));
+          }
+        }
+      } else if (item.name.endsWith('.md')) {
+        const raw = await fetch(item.download_url).then(r => r.text());
+        posts.push(parseMarkdown(raw, item.path));
+      }
+    }
+    return posts;
+  } catch (err) {
+    console.error('读取文章出错:', err);
+    return [];
+  }
+}
 
 const MANUALS = [
   { icon: '📏', gradient: 'from-blue-700 to-blue-500', title: '常用标准件参数速查表', desc: '螺栓、轴承、密封件、弹簧等标准件规格尺寸对照' },
@@ -31,21 +124,32 @@ const TOOLS = [
   { icon: '📑', gradient: 'from-sky-700 to-sky-500', name: '待开发8', desc: '008' },
 ];
 
-const formatTime = (id) => {
+const formatTime = (index) => {
   const times = ['2分钟前','15分钟前','1小时前','2小时前','4小时前','6小时前','昨天','2天前'];
-  return times[id % times.length];
+  return times[index % times.length];
 };
 
 export default function Home() {
   const navigate = useNavigate();
   const [searchQ, setSearchQ] = useState('');
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRealPosts().then(posts => {
+      setArticles(posts);
+      setLoading(false);
+    });
+  }, []);
 
   const handleSearch = (q) => {
     const kw = q || searchQ;
     if (kw.trim()) navigate(`/search?q=${encodeURIComponent(kw.trim())}`);
   };
 
-  const totalPosts = Object.values(CATEGORIES).reduce((s, c) => s + c.count, 0);
+  // 从真实文章计算
+  const FEATURED = articles.filter(a => a.is_featured).slice(0, 4);
+  const LATEST = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
 
   return (
     <div className="min-h-screen bg-background">
@@ -62,7 +166,6 @@ export default function Home() {
                   <h2 className="text-white text-2xl font-bold mb-1.5">站内搜索</h2>
                   <p className="text-white/65 text-sm">搜索技术帖子、故障案例和工艺参数</p>
                 </div>
-
               </div>
               <div className="relative max-w-2xl">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
@@ -110,24 +213,32 @@ export default function Home() {
                 </div>
                 <button className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">更多 <ChevronRight className="w-3.5 h-3.5" /></button>
               </div>
-              <div className="divide-y divide-border/40">
-                {LATEST.map(a => {
-                  const cat = CATEGORIES[a.category] || {};
-                  return (
-                    <Link key={a.id} to={`/article/${a.id}`} className="flex items-start gap-3 py-3.5 group cursor-pointer hover:bg-muted/50 -mx-2 px-2 rounded-lg transition-all">
-                      <span className="text-xs text-muted-foreground w-12 shrink-0 pt-0.5">{formatTime(parseInt(a.id))}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm text-foreground group-hover:text-blue-700 leading-snug mb-1.5 transition-colors line-clamp-1">{a.title}</div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cat.tagClass || 'bg-blue-50 text-blue-700'}`}>{cat.label}</span>
-                          <span className="text-xs text-muted-foreground">{a.author}</span>
-                          <span className="text-xs text-red-500 font-semibold">{a.views?.toLocaleString()} 阅读</span>
+              
+              {loading ? (
+                <div className="text-center py-10 text-muted-foreground">正在加载文章...</div>
+              ) : LATEST.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">暂无文章</div>
+              ) : (
+                <div className="divide-y divide-border/40">
+                  {LATEST.map((a, i) => {
+                    const slug = VALUE_TO_SLUG[a.category] || a.category;
+                    const cat = CATEGORIES[slug] || {};
+                    return (
+                      <Link key={a.id} to={`/article/${a.id}`} className="flex items-start gap-3 py-3.5 group cursor-pointer hover:bg-muted/50 -mx-2 px-2 rounded-lg transition-all">
+                        <span className="text-xs text-muted-foreground w-12 shrink-0 pt-0.5">{formatTime(i)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm text-foreground group-hover:text-blue-700 leading-snug mb-1.5 transition-colors line-clamp-1">{a.title}</div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cat.tagClass || 'bg-blue-50 text-blue-700'}`}>{cat.label || a.category}</span>
+                            <span className="text-xs text-muted-foreground">{a.author}</span>
+                            <span className="text-xs text-red-500 font-semibold">{a.views?.toLocaleString()} 阅读</span>
+                          </div>
                         </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Category Grid */}
@@ -145,7 +256,7 @@ export default function Home() {
                   { key: 'tongyong', label: '通用机械设备' },
                   { key: 'jianzhu', label: '建筑工程机械' },
                   { key: 'qingxi', label: '清洗通风' },
-                  { key: 'jichuang_jx', label: '机床机械' },
+                  { key: 'jichuang', label: '机床机械' },
                   { key: 'wuliu', label: '物流设备' },
                   { key: 'shipin', label: '食品机械' },
                   { key: 'jixie_qt', label: '机械设备-其他' },
@@ -168,29 +279,36 @@ export default function Home() {
                   每周精选
                 </div>
               </div>
-              <div className="space-y-4">
-                {FEATURED.map(a => {
-                  const cat = CATEGORIES[a.category] || {};
-                  return (
-                    <Link key={a.id} to={`/article/${a.id}`}
-                      className="flex gap-4 p-4 rounded-xl border border-border bg-background hover:bg-card hover:shadow-md hover:translate-x-1 transition-all cursor-pointer group">
-                      <div className={`w-28 h-20 rounded-lg flex items-center justify-center bg-gradient-to-br ${cat.color || 'from-blue-700 to-blue-500'} flex-shrink-0`}>
-                        <span className="text-white text-xs font-bold px-2 text-center leading-tight">{cat.label}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="inline-block px-2 py-0.5 bg-yellow-500 text-white rounded text-xs font-bold mb-1.5">精选</span>
-                        <h4 className="font-bold text-sm leading-snug mb-1 group-hover:text-blue-700 transition-colors line-clamp-2">{a.title}</h4>
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{a.summary}</p>
-                        <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
-                          <span>{a.author}</span>
-                          <span>👁 {a.views?.toLocaleString()}</span>
-                          <span>❤️ {a.likes}</span>
+              
+              {loading ? (
+                <div className="text-center py-10 text-muted-foreground">正在加载...</div>
+              ) : FEATURED.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">暂无精选文章</div>
+              ) : (
+                <div className="space-y-4">
+                  {FEATURED.map(a => {
+                    const slug = VALUE_TO_SLUG[a.category] || a.category;
+                    const cat = CATEGORIES[slug] || {};
+                    return (
+                      <Link key={a.id} to={`/article/${a.id}`}
+                        className="flex gap-4 p-4 rounded-xl border border-border bg-background hover:bg-card hover:shadow-md hover:translate-x-1 transition-all cursor-pointer group">
+                        <div className={`w-28 h-20 rounded-lg flex items-center justify-center bg-gradient-to-br ${cat.color || 'from-blue-700 to-blue-500'} flex-shrink-0`}>
+                          <span className="text-white text-xs font-bold px-2 text-center leading-tight">{cat.label || a.category}</span>
                         </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="inline-block px-2 py-0.5 bg-yellow-500 text-white rounded text-xs font-bold mb-1.5">精选</span>
+                          <h4 className="font-bold text-sm leading-snug mb-1 group-hover:text-blue-700 transition-colors line-clamp-2">{a.title}</h4>
+                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{a.summary}</p>
+                          <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                            <span>{a.author}</span>
+                            <span>👁 {a.views?.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
           </div>
@@ -199,7 +317,7 @@ export default function Home() {
           <aside className="space-y-5">
             <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <h4 className="font-bold text-sm mb-4 pb-2.5 border-b-2 border-blue-600 inline-block">🔥 热门排行</h4>
-              <SidebarHotList />
+              <SidebarHotList articles={articles} />
             </div>
 
             <AdSidebar slot={3} size="top" colorScheme="pink" label="侧边栏顶部广告" />

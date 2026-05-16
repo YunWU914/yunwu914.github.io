@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -7,17 +7,14 @@ import ScrollToTop from '../components/ScrollToTop';
 import ArticleCard from '../components/ArticleCard';
 import { AdBannerWide, AdSlot, AdSidebar } from '../components/AdBanner';
 import { SidebarHotList, SidebarAuthors } from '../components/SidebarHot';
-import { CATEGORIES } from '../lib/mockData';
+import { MOCK_ARTICLES, CATEGORIES } from '../lib/mockData';
 
 // ============================================
-// 1. 读取真实文章（递归 content/posts 所有子目录）
+// 配置
 // ============================================
-const postModules = import.meta.glob('/content/posts/**/*.md', { eager: true });
+const REPO = 'YunWU914/mechanical-forum';
+const BRANCH = 'main';
 
-// ============================================
-// 2. URL slug → frontmatter category 映射
-// 根据你的导航栏URL和config.yml里的value对应
-// ============================================
 const CATEGORY_SLUG_MAP = {
   'tongyong': 'general-machinery',
   'jianzhu': 'construction-machinery',
@@ -36,41 +33,36 @@ const CATEGORY_SLUG_MAP = {
 };
 
 // ============================================
-// 3. 解析 frontmatter 辅助函数
+// 解析 markdown 的 frontmatter
 // ============================================
-function parseArticle(path, mod) {
+function parseMarkdown(raw, path) {
+  const match = raw.match(/^---\n([\s\S]*?)\n---/);
   let frontmatter = {};
-  let content = '';
+  let content = raw;
 
-  // 如果装了 vite-plugin-md 等插件，直接用解析好的数据
-  if (mod?.attributes || mod?.frontmatter) {
-    frontmatter = mod.attributes || mod.frontmatter;
-    content = mod.html || mod.body || mod.default || '';
-  } else {
-    // 手动解析原始 markdown 字符串（兜底）
-    const raw = typeof mod === 'string' ? mod : (mod.default || '');
-    const match = raw.match(/^---\n([\s\S]*?)\n---/);
-    if (match) {
-      match[1].split('\n').forEach(line => {
-        const sep = line.indexOf(':');
-        if (sep > -1) {
-          const key = line.slice(0, sep).trim();
-          let value = line.slice(sep + 1).trim();
-          // 去掉引号
-          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
-          }
-          // 简单数组解析
-          if (value.startsWith('[') && value.endsWith(']')) {
-            try { value = JSON.parse(value.replace(/'/g, '"')); } catch { }
-          }
-          frontmatter[key] = value;
+  if (match) {
+    content = raw.replace(match[0], '').trim();
+    match[1].split('\n').forEach(line => {
+      if (!line.trim() || line.startsWith('#')) return;
+      const sep = line.indexOf(':');
+      if (sep > -1) {
+        const key = line.slice(0, sep).trim();
+        let value = line.slice(sep + 1).trim();
+        
+        if ((value.startsWith('"') && value.endsWith('"')) || 
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
         }
-      });
-      content = raw.replace(match[0], '').trim();
-    } else {
-      content = raw;
-    }
+        
+        if (value.startsWith('[') && value.endsWith(']')) {
+          try {
+            value = value.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+          } catch {}
+        }
+        
+        frontmatter[key] = value;
+      }
+    });
   }
 
   return {
@@ -89,9 +81,41 @@ function parseArticle(path, mod) {
 }
 
 // ============================================
-// 4. 一次性解析所有真实文章
+// 用 GitHub API 读取所有文章
 // ============================================
-const allArticles = Object.entries(postModules).map(([path, mod]) => parseArticle(path, mod));
+async function fetchAllPosts() {
+  const posts = [];
+  
+  try {
+    const resp = await fetch(`https://api.github.com/repos/${REPO}/contents/content/posts?ref=${BRANCH}`);
+    if (!resp.ok) throw new Error('读取目录失败');
+    const rootItems = await resp.json();
+    
+    for (const item of rootItems) {
+      if (item.type === 'dir') {
+        // 子目录（分类文件夹）
+        const subResp = await fetch(item.url);
+        if (!subResp.ok) continue;
+        const files = await subResp.json();
+        
+        for (const file of files) {
+          if (file.name.endsWith('.md')) {
+            const raw = await fetch(file.download_url).then(r => r.text());
+            posts.push(parseMarkdown(raw, file.path));
+          }
+        }
+      } else if (item.name.endsWith('.md')) {
+        // 根目录下的旧文章
+        const raw = await fetch(item.download_url).then(r => r.text());
+        posts.push(parseMarkdown(raw, item.path));
+      }
+    }
+  } catch (err) {
+    console.error('读取文章出错:', err);
+  }
+  
+  return posts;
+}
 
 const FILTERS = ['全部', '最新发布', '最多阅读', '最多评论', '精华帖'];
 
@@ -99,27 +123,45 @@ export default function CategoryPage() {
   const { category } = useParams();
   const [filter, setFilter] = useState('全部');
   const [page, setPage] = useState(1);
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const cat = CATEGORIES[category] || { label: category, emoji: '📂', color: 'from-blue-700 to-blue-500', desc: '' };
-
-  // ============================================
-  // 5. 把 URL slug 转成 frontmatter 里的 category value
-  // ============================================
   const targetCategory = CATEGORY_SLUG_MAP[category] || category;
 
   // ============================================
-  // 6. 过滤当前分类的真实文章
+  // 页面加载时读取真实文章
   // ============================================
-  let articles = allArticles.filter(a => a.category === targetCategory);
+  useEffect(() => {
+    setLoading(true);
+    setPage(1);
+    
+    fetchAllPosts().then(posts => {
+      let filtered;
+      
+      if (posts.length > 0) {
+        // 有真实文章，按分类过滤
+        filtered = posts.filter(a => a.category === targetCategory || a.category === category);
+      } else {
+        // 兜底：读不到就用假数据（至少不空白）
+        filtered = MOCK_ARTICLES.filter(a => a.category === category);
+      }
+      
+      setArticles(filtered);
+      setLoading(false);
+    });
+  }, [category, targetCategory]);
 
-  if (filter === '最多阅读') articles = [...articles].sort((a, b) => (b.views || 0) - (a.views || 0));
-  else if (filter === '最多评论') articles = [...articles].sort((a, b) => (b.comment_count || 0) - (a.comment_count || 0));
-  else if (filter === '最新发布') articles = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
-  else if (filter === '精华帖') articles = articles.filter(a => a.is_featured);
+  // 排序
+  let displayArticles = [...articles];
+  if (filter === '最多阅读') displayArticles.sort((a, b) => (b.views || 0) - (a.views || 0));
+  else if (filter === '最多评论') displayArticles.sort((a, b) => (b.comment_count || 0) - (a.comment_count || 0));
+  else if (filter === '最新发布') displayArticles.sort((a, b) => new Date(b.date) - new Date(a.date));
+  else if (filter === '精华帖') displayArticles = displayArticles.filter(a => a.is_featured);
 
   const PER_PAGE = 5;
-  const totalPages = Math.max(1, Math.ceil(articles.length / PER_PAGE));
-  const pageArticles = articles.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(displayArticles.length / PER_PAGE));
+  const pageArticles = displayArticles.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
     <div className="min-h-screen bg-background">
@@ -160,7 +202,12 @@ export default function CategoryPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
           <div>
             {/* Articles */}
-            {pageArticles.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-20 text-muted-foreground">
+                <span className="text-6xl block mb-4">⏳</span>
+                <p className="text-lg font-medium">正在加载文章...</p>
+              </div>
+            ) : pageArticles.length === 0 ? (
               <div className="text-center py-20 text-muted-foreground">
                 <span className="text-6xl block mb-4">🔍</span>
                 <p className="text-lg font-medium">该分类暂无内容</p>
@@ -172,7 +219,7 @@ export default function CategoryPage() {
             <AdSlot slot={2} />
 
             {/* Pagination */}
-            {totalPages > 1 && (
+            {!loading && totalPages > 1 && (
               <div className="flex justify-center gap-2 mt-6">
                 <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
                   className="px-4 py-2 rounded-lg border border-border bg-card text-sm text-muted-foreground disabled:opacity-40 hover:bg-muted transition-all">

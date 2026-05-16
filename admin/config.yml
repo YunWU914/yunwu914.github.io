@@ -9,13 +9,13 @@ collections:
   - name: "posts"
     label: "文章"
     folder: "content/posts"
+    path: "{{category}}/{{slug}}"        # ← 新增这一行！
     create: true
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     fields:
       - {label: "标题", name: "title", widget: "string"}
       - {label: "发布日期", name: "date", widget: "datetime"}
       
-      # 新增：分类选择（单选）
       - label: "分类"
         name: "category"
         widget: "select"
@@ -36,14 +36,10 @@ collections:
           - { label: "材料热处理", value: "heat-treatment" }
         default: "general-machinery"
       
-      # 新增：标签（多选，可选）
       - label: "标签"
         name: "tags"
         widget: "list"
         required: false
       
-      # 新增：摘要/简介
       - {label: "摘要", name: "summary", widget: "text", required: false}
-      
-      # 正文
       - {label: "正文", name: "body", widget: "markdown"}

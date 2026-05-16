@@ -10,5 +10,5 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  base: 'yunwu914.github.io/论坛/',
+  base: '/',
 });
